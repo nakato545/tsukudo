@@ -1,0 +1,224 @@
+index
+
+<html>
+<head>
+<meta charset="UTF-8">
+<title>放物線アンテナ 実験シミュレーション</title>
+<script src="https://cdn.jsdelivr.net/npm/p5@1.4.2/lib/p5.js"></script>
+<style>
+body {
+  text-align: center;
+  background: #fffaf5;
+}
+canvas {
+  border: 2px solid #333;
+  background: #eaf7ff;
+  display: block;
+  margin: 0 auto;
+}
+#controls {
+  margin-top: 10px;
+}
+.row {
+  margin: 4px;
+}
+button {
+  font-size: 22px;
+  padding: 6px 10px;
+  margin: 4px;
+  border: none;
+  border-radius: 8px;
+  background: #ffd966;
+}
+button:hover {
+  background: #ffe699;
+}
+</style>
+</head>
+<body>
+<h2 style="font-family:sans-serif;">🔆 光の反射 実験シミュレーション</h2>
+
+<!-- 🔘 ボタンを上下2段に配置 -->
+<div id="controls">
+  <div class="row">
+    <button id="superButton">🌈</button>
+    <button id="toggleFocus">🔴</button>
+    <button id="focusLightButton">🌟</button>
+  </div>
+  <div class="row">
+    <button id="lineButton">🔺</button>
+    <button id="resetButton">🔁</button>
+  </div>
+</div>
+
+<script>
+let rays = [];
+let p = 100; 
+let showFocus = true;
+let curveMode = "parabola"; 
+let lightY = -250; 
+let lightX = 0;    
+let focusLight = false; // 🌟焦点光モード
+
+function setup() {
+  createCanvas(800,600);
+
+  document.getElementById("superButton").addEventListener("click", ()=>{
+    for(let i=-100;i<=100;i+=20){ launchRay(i); }
+  });
+  document.getElementById("toggleFocus").addEventListener("click", ()=>{
+    showFocus = !showFocus;
+  });
+  document.getElementById("resetButton").addEventListener("click", ()=>{
+    rays = [];
+  });
+  document.getElementById("lineButton").addEventListener("click", ()=>{
+    curveMode = (curveMode==="parabola" ? "line" : "parabola");
+  });
+  document.getElementById("focusLightButton").addEventListener("click", ()=>{
+    focusLight = !focusLight;
+    rays = [];
+    if (focusLight) launchFocusRays();
+  });
+}
+
+function launchRay(x0){
+  let y0 = lightY; 
+  rays.push({ x:x0, y:y0, vx:0, vy:2, r:4, bounce:0, trail:[] });
+}
+
+// 🌟焦点光モード用：下向き光線を発射
+function launchFocusRays(){
+  let fx = 0, fy = -p;
+  for(let angle=-15; angle<=15; angle+=5){
+    let rad = radians(angle);
+    let vx = sin(rad);
+    let vy = cos(rad);
+    rays.push({x:fx, y:fy, vx:vx, vy:vy, r:4, bounce:0, trail:[]});
+  }
+}
+
+function draw() {
+  background(234,247,255);
+  translate(width/2, height/2);
+  if(curveMode==="parabola") drawParabola();
+  else drawTwoLines();
+  if(curveMode==="parabola") drawFocus();
+  updateRays();
+  drawTrails();
+  drawRays();
+  if(!focusLight) drawLightSource();
+}
+
+// 🔷 放物線
+function drawParabola(){
+  stroke("#0077cc"); strokeWeight(2); noFill();
+  beginShape();
+  for(let x=-120; x<=120; x+=2){
+    let y = -x*x/(4*p);
+    vertex(x,y);
+  }
+  endShape();
+}
+
+// ✅ 線モード
+function drawTwoLines(){
+  stroke("#0077cc"); strokeWeight(2); noFill();
+  beginShape();
+  for(let x=-120; x<=120; x+=2){
+    let y = -Math.abs(x) + 200;
+    vertex(x, y);
+  }
+  endShape();
+}
+
+function drawFocus(){
+  if(!showFocus || curveMode !== "parabola") return;
+  let fx = 0;
+  let fy = -p;
+  push();
+  noStroke();
+  fill(255, 80, 80);
+  ellipse(fx, fy, 12, 12);
+  noFill();
+  stroke(255, 120, 120, 200);
+  strokeWeight(2);
+  ellipse(fx, fy, 30, 30);
+  stroke(120);
+  strokeWeight(1);
+  line(fx - 10, fy, fx + 10, fy);
+  line(fx, fy - 10, fx, fy + 10);
+  pop();
+}
+
+/* 🌟 光源を広くする */
+function drawLightSource(){
+  let markerY = lightY;
+  noStroke();
+  for (let i = 0; i < 5; i++) {
+    let alpha = 100 - i * 20;
+    fill(255, 255, 180, alpha);
+    ellipse(lightX, markerY, 220 - i * 20, 60 - i * 8);
+  }
+  fill(255, 255, 100);
+  ellipse(lightX, markerY, 180, 40);
+  fill(255);
+  ellipse(lightX, markerY, 20, 10);
+}
+
+function updateRays(){
+  for(let r of rays){
+    if(curveMode==="parabola" && r.bounce>=1){
+      r.x += r.vx; r.y += r.vy; r.trail.push({x:r.x,y:r.y});
+      continue;
+    }
+    if(curveMode==="line" && r.bounce>=3) continue;
+
+    r.x += r.vx; 
+    r.y += r.vy;
+    r.trail.push({x:r.x,y:r.y});
+    if(r.trail.length>1000) r.trail.shift();
+
+    let surfaceY, slope;
+    if(curveMode==="parabola"){
+      surfaceY = -r.x*r.x/(4*p);
+      slope = -r.x/(2*p);
+    } else {
+      surfaceY = -Math.abs(r.x) + 200; 
+      slope = (r.x>=0) ? -1 : 1;
+    }
+
+    if(r.y >= surfaceY && r.x >= -120 && r.x <= 120){
+      let nx = -slope, ny = 1;
+      let norm = Math.sqrt(nx*nx+ny*ny);
+      nx/=norm; ny/=norm;
+      let dot = r.vx*nx + r.vy*ny;
+      r.vx -= 2*dot*nx;
+      r.vy -= 2*dot*ny;
+      r.y = surfaceY - 1;
+      r.bounce++;
+    }
+  }
+}
+
+function drawTrails(){
+  for(let r of rays){
+    stroke(255,180,0,180); strokeWeight(2); noFill();
+    beginShape();
+    r.trail.forEach(pt=>vertex(pt.x, pt.y));
+    endShape();
+  }
+}
+
+function drawRays(){
+  fill("orange"); noStroke();
+  for(let r of rays){ ellipse(r.x,r.y,r.r*2,r.r*2); }
+}
+</script>
+</body>
+</html>
+
+
+
+
+
